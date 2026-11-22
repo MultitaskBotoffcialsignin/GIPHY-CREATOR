@@ -303,7 +303,10 @@ client.on("interactionCreate", async interaction => {
   if (action === "send") {
     const gif = picker.results[picker.index];
     try {
-      await interaction.channel.send({ embeds: makeGiphyEmbeds([gif], `GIF selected by ${interaction.user.username}`) });
+      await interaction.followUp({
+        embeds: makeGiphyEmbeds([gif], `GIF selected by ${interaction.user.username}`),
+        ephemeral: false
+      });
       gifindPickers.delete(ownerId);
       return interaction.update({ content: "Sent your GIF to the channel!", embeds: [], components: [] });
     } catch (error) {
