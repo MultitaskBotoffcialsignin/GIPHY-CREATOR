@@ -2,7 +2,7 @@ require("dotenv").config();
 const {
   Client, GatewayIntentBits, AttachmentBuilder, EmbedBuilder,
   ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits, REST, Routes
 } = require("discord.js");
 const { createCanvas } = require("@napi-rs/canvas");
 const { GIFEncoder, quantize, applyPalette } = require("gifenc");
@@ -234,8 +234,19 @@ http.createServer((req, res) => {
   res.end("Not found.");
 }).listen(PORT, "0.0.0.0", () => console.log(`Health server listening on port ${PORT}`));
 
-if (!process.env.DISCORD_TOKEN) {
-  console.error("Missing DISCORD_TOKEN. Add it to your hosting environment.");
+if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID) {
+  console.error("Missing DISCORD_TOKEN or CLIENT_ID. Add both to your hosting environment.");
   process.exit(1);
 }
-client.login(process.env.DISCORD_TOKEN);
+
+(async () => {
+  try {
+    const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+    console.log("GIPHY CREATOR slash commands registered.");
+    await client.login(process.env.DISCORD_TOKEN);
+  } catch (error) {
+    console.error("Startup or slash-command registration failed:", error);
+    process.exit(1);
+  }
+})();
