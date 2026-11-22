@@ -215,8 +215,13 @@ client.on("interactionCreate", async interaction => {
     }
     if (commandName === "trendinggifs") {
       await interaction.deferReply();
-      const results = await getGiphy("trending");
-      return interaction.editReply({embeds: makeGiphyEmbeds(results, "Trending on GIPHY")});
+      // Fetch a larger trending set, but show only the top trending GIF.
+      const results = await getGiphy("trending", "", 25);
+      const topTrending = results[0];
+      return interaction.editReply({
+        content: "Top trending GIF right now:",
+        embeds: makeGiphyEmbeds([topTrending], "Top trending on GIPHY")
+      });
     }
     if (commandName === "gifind") {
       await interaction.deferReply();
