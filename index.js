@@ -2,7 +2,7 @@ require("dotenv").config();
 const {
   Client, GatewayIntentBits, AttachmentBuilder, EmbedBuilder,
   ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder,
-  PermissionFlagsBits, REST, Routes
+  PermissionFlagsBits, REST, Routes, IntegrationType, InteractionContextType
 } = require("discord.js");
 const { createCanvas } = require("@napi-rs/canvas");
 const { GIFEncoder, quantize, applyPalette } = require("gifenc");
@@ -145,7 +145,23 @@ const commands = [
   new SlashCommandBuilder().setName("removegif").setDescription("Remove a GIF from this server's library (Manage Server)")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addIntegerOption(o => o.setName("number").setDescription("Number shown in /servergif").setRequired(true).setMinValue(1))
-].map(c => c.toJSON());
+].map(c => {
+  const guildOnly = ["servergif", "approvegif", "removegif"].includes(c.name);
+  if (guildOnly) {
+    return c
+      .setIntegrationTypes(IntegrationType.GuildInstall)
+      .setContexts(InteractionContextType.Guild)
+      .toJSON();
+  }
+  return c
+    .setIntegrationTypes(IntegrationType.GuildInstall, IntegrationType.UserInstall)
+    .setContexts(
+      InteractionContextType.Guild,
+      InteractionContextType.BotDM,
+      InteractionContextType.PrivateChannel
+    )
+    .toJSON();
+});
 
 client.once("ready", () => console.log(`GIPHY CREATOR online as ${client.user.tag}`));
 
