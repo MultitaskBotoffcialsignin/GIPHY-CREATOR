@@ -5,7 +5,7 @@ const {
   PermissionFlagsBits
 } = require("discord.js");
 const { createCanvas } = require("@napi-rs/canvas");
-const GIFEncoder = require("gifencoder");
+const { GIFEncoder, quantize, applyPalette } = require("gifenc");
 const fs = require("node:fs");
 const path = require("node:path");
 const https = require("node:https");
@@ -34,22 +34,11 @@ const COLORS = {
 const randomItem = (items) => items[Math.floor(Math.random() * items.length)];
 
 async function makeGif({ text, background, color, speed, width, height }) {
-  const encoder = new GIFEncoder(width, height);
-  const chunks = [];
-  const stream = encoder.createReadStream();
-  stream.on("data", chunk => chunks.push(chunk));
-  const finished = new Promise((resolve, reject) => {
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-  encoder.start();
-  encoder.setRepeat(0);
-  encoder.setDelay(speed);
-  encoder.setQuality(10);
-
+  const encoder = GIFEncoder();
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
   const fontSize = Math.min(58, Math.floor(width / Math.max(5, text.length) * 1.55));
+
   for (let frame = 0; frame < 16; frame++) {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, width, height);
@@ -66,10 +55,19 @@ async function makeGif({ text, background, color, speed, width, height }) {
     ctx.fillStyle = color;
     ctx.fillText(text, 0, 0, width - 36);
     ctx.restore();
-    encoder.addFrame(ctx);
+
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    const palette = quantize(pixels, 256);
+    const indexedPixels = applyPalette(pixels, palette);
+    encoder.writeFrame(indexedPixels, width, height, {
+      palette,
+      delay: speed,
+      repeat: 0
+    });
   }
+
   encoder.finish();
-  return finished;
+  return Buffer.from(encoder.bytes());
 }
 
 function getGiphy(pathname) {
