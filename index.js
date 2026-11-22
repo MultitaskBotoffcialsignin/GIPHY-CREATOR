@@ -70,12 +70,14 @@ async function makeGif({ text, background, color, speed, width, height }) {
   return Buffer.from(encoder.bytes());
 }
 
-function getGiphy(pathname) {
+function getGiphy(pathname, query = "") {
   const key = process.env.GIPHY_API_KEY;
   if (!key) return Promise.reject(new Error("GIPHY_API_KEY is not configured."));
   const url = new URL(`https://api.giphy.com/v1/gifs/${pathname}`);
   url.searchParams.set("api_key", key);
-  url.searchParams.set("limit", "1");
+  url.searchParams.set("limit", "5");
+  if (query) url.searchParams.set("q", query);
+  url.searchParams.set("rating", "pg");
   return new Promise((resolve, reject) => {
     https.get(url, res => {
       let body = "";
@@ -84,14 +86,29 @@ function getGiphy(pathname) {
       res.on("end", () => {
         try {
           const parsed = JSON.parse(body);
-          const item = parsed.data?.[0] || parsed.data;
-          const gifUrl = item?.images?.original?.url;
-          if (!gifUrl) return reject(new Error("GIPHY did not return a GIF."));
-          resolve({ url: gifUrl, title: item.title || "GIPHY GIF" });
+          const items = Array.isArray(parsed.data) ? parsed.data : [parsed.data].filter(Boolean);
+          const gifs = items.map(item => ({
+            id: item.id,
+            title: item.title || "GIPHY GIF",
+            url: item.images?.original?.url,
+            pageUrl: item.url
+          })).filter(item => item.url);
+          if (!gifs.length) return reject(new Error("GIPHY did not find any GIFs."));
+          resolve(gifs);
         } catch (error) { reject(error); }
       });
     }).on("error", reject);
   });
+}
+
+function makeGiphyEmbeds(gifs, heading) {
+  return gifs.map((gif, index) => new EmbedBuilder()
+    .setColor(0x2471e8)
+    .setTitle(`${index + 1}. ${gif.title}`)
+    .setURL(gif.pageUrl)
+    .setDescription(`**GIPHY ID:** \`${gif.id}\``)
+    .setImage(gif.url)
+    .setFooter({ text: heading }));
 }
 
 function saveUserGif(userId, entry) {
@@ -118,7 +135,9 @@ const commands = [
   new SlashCommandBuilder().setName("mygif").setDescription("View GIFs you created with this bot"),
   new SlashCommandBuilder().setName("servergif").setDescription("View GIFs approved for this server"),
   new SlashCommandBuilder().setName("randomgif").setDescription("Get a random GIF from GIPHY"),
-  new SlashCommandBuilder().setName("trendinggif").setDescription("Get a trending GIF from GIPHY"),
+  new SlashCommandBuilder().setName("trendinggifs").setDescription("Show trending GIFs from GIPHY"),
+  new SlashCommandBuilder().setName("gifind").setDescription("Search GIPHY for GIFs")
+    .addStringOption(o => o.setName("query").setDescription("What GIF should I find?").setRequired(true).setMaxLength(80)),
   new SlashCommandBuilder().setName("approvegif").setDescription("Approve a GIF for this server (Manage Server)")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addAttachmentOption(o => o.setName("gif").setDescription("GIF file to approve").setRequired(true))
@@ -189,10 +208,21 @@ client.on("interactionCreate", async interaction => {
       writeJson(SERVER_FILE,servers);
       return interaction.reply({content:`Removed **${removed.name}** from this server's GIF library.`});
     }
-    if (commandName === "randomgif" || commandName === "trendinggif") {
+    if (commandName === "randomgif") {
       await interaction.deferReply();
-      const result = await getGiphy(commandName === "randomgif" ? "random" : "trending");
-      return interaction.editReply({content:`**${result.title}**\n${result.url}`});
+      const results = await getGiphy("random");
+      return interaction.editReply({embeds: makeGiphyEmbeds(results, "Random GIPHY result")});
+    }
+    if (commandName === "trendinggifs") {
+      await interaction.deferReply();
+      const results = await getGiphy("trending");
+      return interaction.editReply({embeds: makeGiphyEmbeds(results, "Trending on GIPHY")});
+    }
+    if (commandName === "gifind") {
+      await interaction.deferReply();
+      const query = interaction.options.getString("query", true);
+      const results = await getGiphy("search", query);
+      return interaction.editReply({content:`Search results for **${query}**:`,embeds: makeGiphyEmbeds(results, `GIPHY search: ${query}`)});
     }
   } catch (error) {
     console.error(error);
