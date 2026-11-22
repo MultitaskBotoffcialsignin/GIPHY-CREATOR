@@ -149,12 +149,12 @@ const commands = [
   const guildOnly = ["servergif", "approvegif", "removegif"].includes(c.name);
   if (guildOnly) {
     return c
-      .setApplicationIntegrationTypes(ApplicationIntegrationType.GuildInstall)
+      .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
       .setContexts(InteractionContextType.Guild)
       .toJSON();
   }
   return c
-    .setApplicationIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
     .setContexts(
       InteractionContextType.Guild,
       InteractionContextType.BotDM,
