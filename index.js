@@ -302,16 +302,24 @@ client.on("interactionCreate", async interaction => {
   if (!picker) return interaction.reply({ content: "This picker expired. Run /gifind again.", ephemeral: true });
   if (action === "send") {
     const gif = picker.results[picker.index];
+    await interaction.deferUpdate();
     try {
       await interaction.followUp({
-        embeds: makeGiphyEmbeds([gif], `GIF selected by ${interaction.user.username}`),
-        ephemeral: false
+        embeds: makeGiphyEmbeds([gif], `GIF selected by ${interaction.user.username}`)
       });
       gifindPickers.delete(ownerId);
-      return interaction.update({ content: "Sent your GIF to the channel!", embeds: [], components: [] });
+      return interaction.editReply({
+        content: "Sent your GIF to the channel!",
+        embeds: [],
+        components: []
+      });
     } catch (error) {
-      console.error(error);
-      return interaction.reply({ content: "I couldn't send that GIF in this channel.", ephemeral: true });
+      console.error("GIF send failed:", error);
+      return interaction.editReply({
+        content: "I couldn't send that GIF. Check the Render logs for the GIF send failed error.",
+        embeds: [],
+        components: []
+      });
     }
   }
   if (action === "prev") picker.index = Math.max(0, picker.index - 1);
