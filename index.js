@@ -2,7 +2,7 @@ require("dotenv").config();
 const {
   Client, GatewayIntentBits, AttachmentBuilder, EmbedBuilder,
   ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder,
-  PermissionFlagsBits, REST, Routes, IntegrationType, InteractionContextType
+  PermissionFlagsBits, REST, Routes, ApplicationIntegrationType, InteractionContextType
 } = require("discord.js");
 const { createCanvas } = require("@napi-rs/canvas");
 const { GIFEncoder, quantize, applyPalette } = require("gifenc");
@@ -149,12 +149,12 @@ const commands = [
   const guildOnly = ["servergif", "approvegif", "removegif"].includes(c.name);
   if (guildOnly) {
     return c
-      .setIntegrationTypes(IntegrationType.GuildInstall)
+      .setApplicationIntegrationTypes(ApplicationIntegrationType.GuildInstall)
       .setContexts(InteractionContextType.Guild)
       .toJSON();
   }
   return c
-    .setIntegrationTypes(IntegrationType.GuildInstall, IntegrationType.UserInstall)
+    .setApplicationIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
     .setContexts(
       InteractionContextType.Guild,
       InteractionContextType.BotDM,
