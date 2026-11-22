@@ -70,12 +70,12 @@ async function makeGif({ text, background, color, speed, width, height }) {
   return Buffer.from(encoder.bytes());
 }
 
-function getGiphy(pathname, query = "") {
+function getGiphy(pathname, query = "", limit = 5) {
   const key = process.env.GIPHY_API_KEY;
   if (!key) return Promise.reject(new Error("GIPHY_API_KEY is not configured."));
   const url = new URL(`https://api.giphy.com/v1/gifs/${pathname}`);
   url.searchParams.set("api_key", key);
-  url.searchParams.set("limit", "5");
+  url.searchParams.set("limit", String(limit));
   if (query) url.searchParams.set("q", query);
   url.searchParams.set("rating", "pg");
   return new Promise((resolve, reject) => {
@@ -221,8 +221,23 @@ client.on("interactionCreate", async interaction => {
     if (commandName === "gifind") {
       await interaction.deferReply();
       const query = interaction.options.getString("query", true);
-      const results = await getGiphy("search", query);
-      return interaction.editReply({content:`Search results for **${query}**:`,embeds: makeGiphyEmbeds(results, `GIPHY search: ${query}`)});
+      // Ask GIPHY for a larger set, then choose one strong match.
+      // GIPHY already orders search results by relevance; title matching
+      // helps promote results whose names directly match the user's query.
+      const results = await getGiphy("search", query, 25);
+      const terms = query.toLowerCase().split(/\\s+/).filter(Boolean);
+      const best = results
+        .map((gif, index) => {
+          const title = gif.title.toLowerCase();
+          const matchedTerms = terms.filter(term => title.includes(term)).length;
+          const exactPhrase = title.includes(query.toLowerCase()) ? 5 : 0;
+          return { gif, score: exactPhrase + matchedTerms * 2 - index * 0.01 };
+        })
+        .sort((a, b) => b.score - a.score)[0].gif;
+      return interaction.editReply({
+        content: `Best match for **${query}**:`,
+        embeds: makeGiphyEmbeds([best], `Best GIPHY match: ${query}`)
+      });
     }
   } catch (error) {
     console.error(error);
