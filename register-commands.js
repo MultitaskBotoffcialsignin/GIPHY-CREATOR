@@ -20,7 +20,9 @@ const commands = [
   new (require("discord.js").SlashCommandBuilder)().setName("mygif").setDescription("View GIFs you created"),
   new (require("discord.js").SlashCommandBuilder)().setName("servergif").setDescription("View GIFs approved for this server"),
   new (require("discord.js").SlashCommandBuilder)().setName("randomgif").setDescription("Get a random GIF from GIPHY"),
-  new (require("discord.js").SlashCommandBuilder)().setName("trendinggif").setDescription("Get a trending GIF from GIPHY"),
+  new (require("discord.js").SlashCommandBuilder)().setName("trendinggifs").setDescription("Show trending GIFs from GIPHY"),
+  new (require("discord.js").SlashCommandBuilder)().setName("gifind").setDescription("Search GIPHY for GIFs")
+    .addStringOption(o=>o.setName("query").setDescription("What GIF should I find?").setRequired(true).setMaxLength(80)),
   new (require("discord.js").SlashCommandBuilder)().setName("approvegif").setDescription("Approve a GIF for this server")
     .setDefaultMemberPermissions(require("discord.js").PermissionFlagsBits.ManageGuild)
     .addAttachmentOption(o=>o.setName("gif").setDescription("GIF file to approve").setRequired(true))
