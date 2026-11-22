@@ -1,7 +1,7 @@
 require("dotenv").config();
 const {
   Client, GatewayIntentBits, AttachmentBuilder, EmbedBuilder,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, SlashCommandBuilder,
   PermissionFlagsBits, REST, Routes, ApplicationIntegrationType, InteractionContextType
 } = require("discord.js");
 const { createCanvas } = require("@napi-rs/canvas");
@@ -240,24 +240,14 @@ client.on("interactionCreate", async interaction => {
       });
     }
     if (commandName === "gifind") {
-      await interaction.deferReply();
+      await interaction.deferReply({ ephemeral: true });
       const query = interaction.options.getString("query", true);
-      // Ask GIPHY for a larger set, then choose one strong match.
-      // GIPHY already orders search results by relevance; title matching
-      // helps promote results whose names directly match the user's query.
       const results = await getGiphy("search", query, 25);
-      const terms = query.toLowerCase().split(/\\s+/).filter(Boolean);
-      const best = results
-        .map((gif, index) => {
-          const title = gif.title.toLowerCase();
-          const matchedTerms = terms.filter(term => title.includes(term)).length;
-          const exactPhrase = title.includes(query.toLowerCase()) ? 5 : 0;
-          return { gif, score: exactPhrase + matchedTerms * 2 - index * 0.01 };
-        })
-        .sort((a, b) => b.score - a.score)[0].gif;
+      gifindPickers.set(interaction.user.id, { query, results, index: 0 });
       return interaction.editReply({
-        content: `Best match for **${query}**:`,
-        embeds: makeGiphyEmbeds([best], `Best GIPHY match: ${query}`)
+        content: `Choose a GIF for **${query}**. This picker is private to you.`,
+        embeds: makeGiphyEmbeds([results[0]], `GIF 1 of ${results.length} • ${query}`),
+        components: gifindComponents(interaction.user.id, results, 0)
       });
     }
   } catch (error) {
@@ -266,6 +256,67 @@ client.on("interactionCreate", async interaction => {
     if (interaction.deferred || interaction.replied) await interaction.followUp({content:message,ephemeral:true}).catch(()=>{});
     else await interaction.reply({content:message,ephemeral:true}).catch(()=>{});
   }
+});
+
+const gifindPickers = new Map();
+
+function gifindComponents(userId, results, index) {
+  const select = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`gifind_select_${userId}`)
+      .setPlaceholder("Scroll and choose a GIF")
+      .addOptions(results.slice(0, 25).map((gif, i) => ({
+        label: `${i + 1}. ${(gif.title || "GIPHY GIF").slice(0, 90)}`,
+        value: String(i),
+        default: i === index
+      })))
+  );
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`gifind_prev_${userId}`).setLabel("Previous").setStyle(ButtonStyle.Secondary).setDisabled(index <= 0),
+    new ButtonBuilder().setCustomId(`gifind_next_${userId}`).setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(index >= results.length - 1),
+    new ButtonBuilder().setCustomId(`gifind_send_${userId}`).setLabel("Send GIF").setStyle(ButtonStyle.Success)
+  );
+  return [select, buttons];
+}
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isStringSelectMenu() || !interaction.customId.startsWith("gifind_select_")) return;
+  const ownerId = interaction.customId.replace("gifind_select_", "");
+  if (interaction.user.id !== ownerId) return interaction.reply({ content: "This GIF picker belongs to someone else.", ephemeral: true });
+  const picker = gifindPickers.get(ownerId);
+  if (!picker) return interaction.reply({ content: "This picker expired. Run /gifind again.", ephemeral: true });
+  const index = Number(interaction.values[0]);
+  if (!Number.isInteger(index) || !picker.results[index]) return interaction.reply({ content: "That selection isn't valid.", ephemeral: true });
+  picker.index = index;
+  return interaction.update({
+    embeds: makeGiphyEmbeds([picker.results[index]], `GIF ${index + 1} of ${picker.results.length} • ${picker.query}`),
+    components: gifindComponents(ownerId, picker.results, index)
+  });
+});
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isButton() || !interaction.customId.startsWith("gifind_")) return;
+  const [prefix, action, ownerId] = interaction.customId.split("_");
+  if (interaction.user.id !== ownerId) return interaction.reply({ content: "This GIF picker belongs to someone else.", ephemeral: true });
+  const picker = gifindPickers.get(ownerId);
+  if (!picker) return interaction.reply({ content: "This picker expired. Run /gifind again.", ephemeral: true });
+  if (action === "send") {
+    const gif = picker.results[picker.index];
+    try {
+      await interaction.channel.send({ embeds: makeGiphyEmbeds([gif], `GIF selected by ${interaction.user.username}`) });
+      gifindPickers.delete(ownerId);
+      return interaction.update({ content: "Sent your GIF to the channel!", embeds: [], components: [] });
+    } catch (error) {
+      console.error(error);
+      return interaction.reply({ content: "I couldn't send that GIF in this channel.", ephemeral: true });
+    }
+  }
+  if (action === "prev") picker.index = Math.max(0, picker.index - 1);
+  if (action === "next") picker.index = Math.min(picker.results.length - 1, picker.index + 1);
+  return interaction.update({
+    embeds: makeGiphyEmbeds([picker.results[picker.index]], `GIF ${picker.index + 1} of ${picker.results.length} • ${picker.query}`),
+    components: gifindComponents(ownerId, picker.results, picker.index)
+  });
 });
 
 client.on("interactionCreate", async interaction => {
