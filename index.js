@@ -9,6 +9,7 @@ const GIFEncoder = require("gifencoder");
 const fs = require("node:fs");
 const path = require("node:path");
 const https = require("node:https");
+const http = require("node:http");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const DATA_DIR = path.join(__dirname, "data");
@@ -224,6 +225,16 @@ client.on("interactionCreate", async interaction => {
     }
   }
 });
+
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  if (req.url === "/health" || req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("GIPHY CREATOR is running.");
+  }
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not found.");
+}).listen(PORT, "0.0.0.0", () => console.log(`Health server listening on port ${PORT}`));
 
 if (!process.env.DISCORD_TOKEN) {
   console.error("Missing DISCORD_TOKEN. Add it to your hosting environment.");
